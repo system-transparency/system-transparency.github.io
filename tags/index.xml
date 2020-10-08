@@ -1,0 +1,163 @@
+
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+ <channel>
+   <title>Tags on System Transparency Blog</title>
+   <link>https://system-transparency.github.io/tags/</link>
+   <description>Recent content in Tags on System Transparency Blog</description>
+   <generator>Hugo -- gohugo.io</generator>
+   <language>en-us</language>
+   
+       <atom:link href="https://system-transparency.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+   
+   
+     <item>
+       <title>What happened at CT days 2020?</title>
+       <link>https://system-transparency.github.io/posts/what-happened-at-ct-days-2020/</link>
+       <pubDate>Mon, 14 Sep 2020 00:00:00 +0200</pubDate>
+       
+       <guid>https://system-transparency.github.io/posts/what-happened-at-ct-days-2020/</guid>
+       <description>&lt;p&gt;This year’s &lt;a href=&#34;https://groups.google.com/a/chromium.org/forum/#!topic/ct-policy/JWVVhZTL5RM&#34;&gt;CT
+days&lt;/a&gt;
+were hosted remotely on September 8–9. The agenda covered a wide range of
+topics, such as making CT more newcomer friendly, updating user-agent policies,
+and what it takes to operate a log at scale. I do not intend to write about all
+of it, and especially not every little detail. You will be brought up to speed
+on some highlights and get further reading. All credit obviously goes to the
+people who presented sessions on this material.&lt;/p&gt;
+&lt;h2 id=&#34;new-community-website&#34;&gt;New community website&lt;/h2&gt;
+&lt;p&gt;You might be familiar with the &lt;a href=&#34;https://www.certificate-transparency.org/&#34;&gt;current CT
+website&lt;/a&gt;. It is a little bit like an
+explosion of technical details and links from several years back that, if you
+digest it all, tell you how Google’s CT project works. This is not particularly
+welcoming for newcomers that need to grasp what CT is today and how it fits into
+the broader picture of the web’s public-key infrastructure. For example, CT is
+no longer Google’s own logging project, but rather an ecosystem of different
+people and organizations that come together with one mission: to detect
+maliciously or mistakenly issued certificates. This happens to be the first
+thing you will find when browsing the &lt;a href=&#34;https://certificate.transparency.dev/&#34;&gt;new community
+website&lt;/a&gt;. It is nifty looking, and I
+encourage you to browse it yourself. You will notice that the origin story of CT
+and its broader context is described, which helps the reader pick up the
+fundamentals from a combination of text and visualizations.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://system-transparency.github.io/img/ctdev.png&#34; alt=&#34;Working together to detect maliciously issued certificates&#34;&gt;
+&lt;strong&gt;source&lt;/strong&gt;: &lt;a href=&#34;https://certificate.transparency.dev/&#34;&gt;https://certificate.transparency.dev/&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://unmitigatedrisk.com/&#34;&gt;Ryan Hurst&lt;/a&gt; explained that we can think of the
+new community website as a place where newcomers can be directed to understand
+the value of CT and how it works.  Moreover, it is our collective responsibility
+to add anything that is missing and keep it up-to-date. Anyone can &lt;a href=&#34;https://github.com/google/certificate-transparency-community-site&#34;&gt;submit pull
+requests&lt;/a&gt; on
+GitHub.&lt;/p&gt;
+&lt;h2 id=&#34;policy-updates&#34;&gt;Policy updates&lt;/h2&gt;
+&lt;p&gt;I can second that it is not always easy to understand every nuance of CT
+enforcement by different user agents. For example, I remember &lt;a href=&#34;https://bugs.chromium.org/p/chromium/issues/detail?id=1053971#c1&#34;&gt;filing a
+bug&lt;/a&gt; not too
+long ago when noticing that Chromium (not to be confused with Google Chrome)
+disabled CT by default. In the future there might be a separate and
+lighter-weight Chromium CT policy that embedders could use as a starting point,
+but for now Google’s policy will be shaped solely for Chrome. This is reflected
+by the new CT policy website that is being drafted: the so-called &lt;a href=&#34;https://awhalley.github.io/CertificateTransparency/ct_policy.html&#34;&gt;Chrome
+Certificate Transparency
+Policy&lt;/a&gt;.
+&lt;a href=&#34;https://twitter.com/modyoloN&#34;&gt;Devon O’Brien&lt;/a&gt; appropriately described it as a
+complete overhaul of what the current policy states and how these requirements
+are framed specifically for enforcement in Chrome.&lt;/p&gt;
+&lt;p&gt;The CT community website will link the updated CT policy once it goes live in
+the near future. In the mean time, you can enjoy the draft and provide feedback
+to the &lt;a href=&#34;mailto:chrome-certificate-transparency@google.com&#34;&gt;Chrome CT team&lt;/a&gt; or
+the &lt;a href=&#34;https://groups.google.com/a/chromium.org/g/ct-policy&#34;&gt;CT policy group&lt;/a&gt;. The
+recommended starting point is the different states that a CT log can be in. I am
+not going to detail it, but it was mentioned as a pro-tip in multiple sessions.
+You will also notice that informative reference material was added, with more to
+come as the broader community identifies components that are unclear or missing.&lt;/p&gt;
+&lt;p&gt;There are several policy changes in the midst of the above updates. While not
+particularly huge, they are there and worth pointing out. All new CT logs must
+be temporally sharded. A log that is temporally sharded accepts logging of
+certificates that fall into a range of expiry dates. For example, a 2020-shard
+would not accept certificates that expire in 2021. The status of sharding moves
+from allowed to required, solving the issue of logs that grow forever and ever.
+A log must additionally not return multiple different SCTs for a single log
+entry, which solves undefined behavior in &lt;a href=&#34;https://tools.ietf.org/html/rfc6962&#34;&gt;RFC
+6962&lt;/a&gt; that could lead to unverifiable SCTs
+in quirky corner cases. Note that a certificate that passes the Google Chrome CT
+policy is now said to be CT compliant. It is analogous to the current wording of
+a certificate being CT qualified, and avoids confusion with CT logs that can
+also be qualified in the browser.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://twitter.com/clintw_&#34;&gt;Clint Wilson&lt;/a&gt; announced &lt;a href=&#34;https://groups.google.com/a/chromium.org/forum/?oldui=1#!topic/ct-policy/JWVVhZTL5RM&#34;&gt;Apple’s intended policy
+updates&lt;/a&gt;.
+They are also working towards definitions in undefined scenarios, such as
+expressing their policy in terms of days as opposed to months. The most notable
+policy update (in my opinion) is that the SCT diversity and quantity assumption
+for a CT compliant certificate is about to change. Currently, Apple considers a
+certificate CT compliant if accompanied by two SCTs from any pair of CT logs.
+Longer-lived certificates will require an additional SCT in the future, and log
+operator diversity will be added as well. This reduces the risk that a once CT
+compliant certificate will become non-compliant during its life time. The other
+benefit is that no single log operator can issue a certificate’s SCTs, which
+raises the bar towards unnoticed certificate mis-issuance. What it means that
+two log operators are diverse (also known as independent) is somewhat
+non-trivial: it can span many different dimensions, such as organization,
+country, and infrastructural providers. Google’s &lt;a href=&#34;https://awhalley.github.io/CertificateTransparency/log_policy.html&#34;&gt;updated policy for log
+operators&lt;/a&gt;
+will require a self-assertion that you are independent of all other log
+operators. My best guess is that Apple will rely on something similar to define
+log diversity.&lt;/p&gt;
+&lt;h2 id=&#34;removing-the-one-google-log-requirement&#34;&gt;Removing the one-Google log requirement?&lt;/h2&gt;
+&lt;p&gt;Google Chrome currently considers a certificate CT compliant if it is
+accompanied by two SCTs. One of these SCTs must additionally be issued by a log
+that Google runs. If Google’s CT logs are operated in good faith, we can be sure
+that there are no mis-issued certificates that go unnoticed.&lt;/p&gt;
+&lt;p&gt;To state the obvious, the point of CT is not to trust that Google keeps the
+wider web safe from certificate mis-issuance. The current set-up is in fact
+quite error-prone: sub-optimal trust assumptions aside, a Google outage would
+essentially disable issuance of new CT compliant certificates on the web. Devon
+O’Brien expressed a desire to remove Google from the critical path of
+certificate issuance, and what considerations that need to go into such a
+decision. The major part is that Google must accept that they lose their
+privilege of observing all issued certificates up-front, which provides
+significant proactive security for Chrome users but might impend broader
+user-agent adoption. The result of such a change is that SCTs must be audited
+reactively in the background from many diverse vantage points, such that
+mis-issued certificates get noticed without the one-Google log policy.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://notyetsecure.com/&#34;&gt;Chris Thompson&lt;/a&gt; presented Google’s plans on &lt;a href=&#34;https://docs.google.com/document/d/1G1Jy8LJgSqJ-B673GnTYIG4b7XRw2ZLtvvSlrqFcl4A/edit&#34;&gt;opt-in
+SCT
+auditing&lt;/a&gt;.
+The basic idea is to submit a random subset of SCTs to a Google-operated CT
+auditor. If an SCT is encountered that Google does not know about, that can be
+investigated further by challenging the issuing CT logs to prove certificate
+inclusion. The reason why this requires opt-in stems from the fact that the user
+is essentially sharing a random subset of its browsing history with Google. You
+might wonder who would opt-in for that, but it actually fits pretty well into
+the existing Safe Browsing Extended Reporting (SBER) programme. My largest
+concern is that opted-in users might be identifiable, and in that case the rest
+of us could still be attacked without high likelihood of detection.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://smeiklej.com/&#34;&gt;Sarah Meiklejohn&lt;/a&gt; presented a follow-up session on
+privacy-preserving SCT auditing. It could be described as partial highlights of
+a systematic literature study that considered 15 different proposals against the
+following criteria:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;.  Does it work and in what threat model?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Privacy&lt;/strong&gt;.  What information do which parties learn?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Client-side performance&lt;/strong&gt;.  Bandwidth, computation, and storage?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Latency&lt;/strong&gt;.  How much is added, if any?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Server-side infrastructure costs&lt;/strong&gt;.  What needs to be changed or added?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Threat model&lt;/strong&gt;.  Mainly in terms of which parties need to trust each other.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Non-Google deployability&lt;/strong&gt;.  Can it be deployed without Google-scale?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Near-term deployability&lt;/strong&gt;.  Can we roll it out sooner rather than later?&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;A subtle message is that a proposal without a third-party CT auditor is
+incomplete. I share this view because we cannot expect an end-user to take any
+reasonable action if log misbehavior is suspected. Therefore, it is not just
+proof fetching that needs to be private: also the process of reporting issues.&lt;/p&gt;
+&lt;h2 id=&#34;acknowledgments&#34;&gt;Acknowledgments&lt;/h2&gt;
+&lt;p&gt;Thanks to everyone that contributed to CT days 2020, both in terms of
+organization and putting in the actual work that the different sessions
+presented. A detailed summary and follow-up discussion might appear on the &lt;a href=&#34;https://groups.google.com/a/chromium.org/forum/#!forum/ct-policy&#34;&gt;CT
+policy list&lt;/a&gt;.
+Fredrik Strömberg provided valuable feedback on this story, which is sponsored
+by my &lt;a href=&#34;https://www.system-transparency.org/&#34;&gt;System Transparency&lt;/a&gt; employment at
+Mullvad VPN.&lt;/p&gt;
+</description>
+     </item>
+   
+ </channel>
+</rss>
