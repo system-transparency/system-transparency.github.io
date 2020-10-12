@@ -1,0 +1,261 @@
+<!doctype html>
+
+<html lang="en-us">
+
+<head>
+  <title>Hold on to your hat and learn System Transparency in five minutes! - System Transparency Blog</title>
+  <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="The HTML5 Herald" />
+<meta name="author" content="Rasmus Dahlberg" /><meta property="og:title" content="Hold on to your hat and learn System Transparency in five minutes!" />
+<meta property="og:description" content="What do we really know about the systems that run our critical applications? Not enough is probably a fair summary: much can go wrong between device reset and execution of a user-land application. System Transparency helps you verify that what you think is running remotely actually runs, and not, say, a modified operating system that contains a secret backdoor. I will break it down top-to-bottom after first motivating the rationale and objective briefly." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://system-transparency.github.io/posts/hold-on-to-your-hat-and-learn-system-transparency-in-five-minutes/" />
+<meta property="article:published_time" content="2020-10-12T00:00:00+02:00" />
+<meta property="article:modified_time" content="2020-10-12T00:00:00+02:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Hold on to your hat and learn System Transparency in five minutes!"/>
+<meta name="twitter:description" content="What do we really know about the systems that run our critical applications? Not enough is probably a fair summary: much can go wrong between device reset and execution of a user-land application. System Transparency helps you verify that what you think is running remotely actually runs, and not, say, a modified operating system that contains a secret backdoor. I will break it down top-to-bottom after first motivating the rationale and objective briefly."/>
+
+<meta name="generator" content="Hugo 0.75.1" />
+    
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://system-transparency.github.io/fontawesome/css/all.min.css" />
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
+  
+  
+  <link rel="stylesheet" type="text/css" href="/css/styles.css" /></head>
+
+<body>
+  <div id="container">
+    <header>
+      <h1>
+                <a href="/">System Transparency Blog</a>
+            </h1>
+
+      <ul id="social-media">
+             <li>
+               <a href="https://github.com/system-transparency" title="GitHub">
+               <i class="fab fa-github fa-lg"></i>
+               </a>
+             </li>
+             <li>
+               <a href="https://twitter.com/st_transparency" title="Twitter">
+               <i class="fab fa-twitter fa-lg"></i>
+               </a>
+             </li>
+      </ul>
+      
+      <p><em>A security architecture for bare-metal servers</em></p>
+      
+    </header>
+
+    
+<nav>
+    <ul>
+        
+    </ul>
+</nav>
+
+
+    <main>
+
+
+
+
+<article>
+
+    <h1>Hold on to your hat and learn System Transparency in five minutes!</h1>
+
+    
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2020-10-12T00:00:00&#43;02:00">Oct 12, 2020</time>
+        </li>
+		<li>Rasmus Dahlberg</li>
+        
+
+        
+
+		
+		<li>
+			
+			
+				5 minutes
+			
+			read
+		</li>
+    </ul>
+</aside>
+
+    
+
+    
+
+
+    <p>What do we really know about the systems that run our critical applications?
+Not enough is probably a fair summary: much can go wrong between device reset
+and execution of a user-land application. System Transparency helps you verify
+that what you think is running remotely actually runs, and not, say, a modified
+operating system that contains a secret backdoor. I will break it down
+top-to-bottom after first motivating the rationale and objective briefly.</p>
+<h2 id="rationale-and-objective">Rationale and objective</h2>
+<p>Anyone in a position of power should probably be subject to a proportional
+amount of transparency. It is an important safeguard that deters malicious
+activities, while at the same time making it possible to fix honest mistakes.
+Such a principle can of course be applied in real life, but I mainly refer to
+the different components that compose a digital system: hardware, firmware,
+operating systems, applications, and so forth. Generally I would say that <em>power
+is decreased by transparency because most abuse can be detected</em>. For example,
+it would be proportional by Intel to open up their proprietary management engine
+because it is powerful enough to <a href="https://www.wired.com/2017/05/hack-brief-intel-fixes-critical-bug-lingered-7-dang-years/">hijack your
+system</a>.</p>
+<p>The scenario to keep in mind is accordingly as follows. A remote server is
+running a service somewhere that processes your data based on a policy. You
+might have reason to believe that said policy is followed now, but will it be
+in the future when
+<a href="https://www.eff.org/deeplinks/2020/07/after-weeks-hack-it-past-time-twitter-end-end-encrypt-direct-messages">intruders</a>
+and <a href="https://www.eff.org/cases/apple-challenges-fbi-all-writs-act-order">law
+enforcement</a>
+knock down the door? I, for one, would prefer if we could <em>verify</em> that the
+system in question works as intended (and not just trust that to be the case
+blindly). The other benefit of such remote system verification is more subtle:
+the service provider could use it to determine if intention matches deployment.
+Of course there might be unknown bugs, but by making every part of the system
+as transparent as possible it will be easier to find vulnerabilities and assess
+trustworthiness.</p>
+<h2 id="breaking-it-down-top-to-bottom">Breaking it down, top-to-bottom</h2>
+<p>The idea is to first make transparent what is allowed running on a given system.
+You can view this as the top-most layer that represents an operating system
+package with installed programs, configurations, and so forth. Thereafter we
+need to enforce that nothing else than the transparent operating system package
+is allowed running with a bottom layer. Such enforcement is based on hardware
+features that should be transparent as well.</p>
+<h3 id="reproducible-and-publicly-auditable-operating-system-packages">Reproducible and publicly auditable operating system packages</h3>
+<p>Suppose that we have an operating system package that we would like to deploy.
+As a first step we need to <a href="https://reproducible-builds.org/">build it
+reproducibly</a>, such that anyone can inspect
+the source code and determine if the resulting package lives up to the claimed
+promises. A possible issue that one might find, for example, is that there is
+interactive system access installed: pretty much anything could run after a
+reconfiguration. Therefore, a transparent system should restrict arbitrary
+access and provision updates as new operating system packages that, again,
+build reproducibly. For those that are familiar with functional programming, it
+is essentially an <a href="http://chadfowler.com/2013/06/23/immutable-deployments.html">immutable
+infrastructure</a>.
+An independent benefit of such maintenance is that <a href="https://github.com/Karneades/malware-persistence#overview-of-often-and-less-often-used-persistence-mechanisms">malware
+persistence</a>
+becomes trickier.</p>
+<p>A reproducible operating system package serves a limited purpose unless it is
+publicly available. Therefore, we should insert it into a <a href="https://trillian.transparency.dev/">transparency
+log</a>.  This means that anyone can verify
+whether a package builds reproducibly, and if it contains, say, a secret
+backdoor that would be detected by source inspection.</p>
+<h3 id="measured-and-remotely-attested-boot">Measured and remotely attested boot</h3>
+<p>Now we need to enforce that the publicly disclosed operating system packages
+run on our servers and nothing else. At a first glance it might sound daunting,
+but today’s hardware platforms ship some pretty useful security features. For
+example, there is usually a separate hardware domain for key management,
+cryptographic hashing, Platform Configuration Registers (PCRs), and digital
+signatures. It is possible to measure code, data structures, and configurations
+into a PCR before execution to form a hash chain, such that all initial system
+states can be aggregated into a single value. The system’s boot process can be
+aborted if a measurement diverges from the expected value, e.g., because the
+boot loader did not enforce transparency logging as required by the top layer.
+It is also possible to sign PCR values and attest them remotely. In other
+words, if these features work we can prove to a third party how the system
+booted.</p>
+<h3 id="open-source-firmware-and-linuxboot">Open source firmware and LinuxBoot</h3>
+<p>An immediate concern is that much trust is placed in the underlying hardware
+platform. Naturally, it begs the question if such trust is misplaced. A <a href="https://osseu17.sched.com/event/ByYt/replace-your-exploit-ridden-firmware-with-linux-ronald-minnich-google">talk
+by Ron
+Minnich</a>
+brings you up to speed on why the answer is probably &ldquo;yes&rdquo;. Let us focus on
+solutions instead: open hardware, firmware, and boot loaders. It is paramount
+that these components are vetted thoroughly in the open because they may
+compromise the system <a href="https://securelist.com/mosaicregressor/98849/">while running or before it is even
+started</a>.</p>
+<p>So, System Transparency implements a flavor of
+<a href="https://www.linuxboot.org/">LinuxBoot</a> called
+<a href="https://github.com/system-transparency/system-transparency/blob/master/README.md#bootloader-stboot">stboot</a>.
+It can replace much of the later-stage UEFI components with a Linux kernel and
+a user-land environment in Go, such that a subset of proprietary firmware is
+removed in favor of an open source option that is safer and customizable. For
+example, one possible customization is to enforce transparency logging as a
+criteria to boot into the host operating system. It is possible to eliminate
+UEFI all together by re-flashing the firmware with
+<a href="https://doc.coreboot.org/">coreboot</a> and specifying stboot as a payload. The
+TL;DR is that coreboot is (mostly) open source firmware that does the bare
+minimum hardware initialization. It was recently <a href="https://mullvad.net/en/blog/2019/8/7/open-source-firmware-future/">ported to a modern server
+platform</a>.</p>
+<h3 id="set-up-ceremony-and-tamper-evident-hardware">Set-up ceremony and tamper-evident hardware</h3>
+<p>Assuming an open platform that enforces transparency logging as described
+above, you can be somewhat sure that said operating system packages run. The
+problem is that you cannot easily know if that assumption is true. I am not
+claiming that there is a slam-dunk solution here, but measures can be taken to
+reduce the risk of a broken setup. For example, assemble and install the
+platform while witnessed live by several independent parties that write down
+and publish a log book of events that occurred: &ldquo;<a href="https://github.com/corna/me_cleaner">neutralized the management
+engine</a>&rdquo;, &ldquo;added open firmware with
+checksum XYZ&rdquo;, etc. We can also define some physical security boundaries that,
+if breached, automatically activate defensive mechanisms that preserve the
+system’s overall integrity after setup.</p>
+<h2 id="concluding-remarks">Concluding remarks</h2>
+<p>The described System Transparency design shows how a service provider can
+facilitate trust by engineering a system that is more trustworthy. I would like
+to emphasize <em>more trustworthy:</em> all of the applied techniques have merit on
+their own, and if one part does not fit the use-case or current practice it
+might be reasonable to cut it. For example, if you lease cloud servers that
+only allow starting stboot from UEFI: so be it. Simply assume that there will
+be no firmware and physical attacks for the time being. It is still a
+significant improvement when compared to obscure operating system packages
+since the attack surface and overall trust domain is reduced. <a href="https://medium.com/@nusenu/how-malicious-tor-relays-are-exploiting-users-in-2020-part-i-1097575c0cac">The growing
+problem of malicious Tor relays in the
+cloud</a>
+could benefit from such a solution because a class of real-world attackers
+would not see any traffic (if enforced by Tor). As another example: suppose
+your interest is mainly to harden your own internal infrastructure, and not so
+much about making it transparent for everyone. It is not a strict requirement
+to put the operating system package in the public, i.e., a hash is enough to
+convince yourself that nothing else was allowed running.</p>
+<h2 id="acknowledgments">Acknowledgments</h2>
+<p>Fredrik Strömberg provided valuable feedback on this story, which is sponsored
+by my <a href="https://system-transparency.org/">System Transparency</a> employment at
+Mullvad VPN.</p>
+
+
+</article>
+
+
+<section class="post-nav">
+    <ul>
+        
+        <li>
+            <a href="https://system-transparency.github.io/posts/what-happened-at-ct-days-2020/"><i class="fa fa-chevron-circle-left"></i> What happened at CT days 2020?</a>
+        </li>
+        
+        
+    </ul>
+</section>
+  
+    
+    
+  
+
+
+
+
+
+</main>
+    <footer>
+        <h6>
+			<a href="https://system-transparency.org" title="System
+				Transparency">system-transparency.org</a> |
+            <a href="https://system-transparency.github.ioindex.xml">Subscribe</a></h6>
+    </footer>
+</div>
+
