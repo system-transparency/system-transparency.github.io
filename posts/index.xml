@@ -6,10 +6,126 @@
    <description>Recent content in Posts on System Transparency Blog</description>
    <generator>Hugo -- gohugo.io</generator>
    <language>en-us</language>
-   <lastBuildDate>Mon, 12 Oct 2020 00:00:00 +0200</lastBuildDate>
+   <lastBuildDate>Mon, 23 Nov 2020 00:00:00 +0100</lastBuildDate>
    
        <atom:link href="https://system-transparency.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
    
+   
+     <item>
+       <title>Observations from a Trillian play-date</title>
+       <link>https://system-transparency.github.io/posts/observations-from-a-trillian-play-date/</link>
+       <pubDate>Mon, 23 Nov 2020 00:00:00 +0100</pubDate>
+       
+       <guid>https://system-transparency.github.io/posts/observations-from-a-trillian-play-date/</guid>
+       <description>&lt;p&gt;Have you ever heard about &lt;a href=&#34;https://trillian.transparency.dev/&#34;&gt;Trillian&lt;/a&gt; in the
+context of transparency logging?  Perhaps you view it as an integral part of
+&lt;a href=&#34;https://certificate.transparency.dev/&#34;&gt;Certificate Transparency&lt;/a&gt;, a solution
+for arbitrary transparency applications, or both. Even if you know Certificate
+Transparency quite well the Trillian details might be a bit blurry until you
+sit down and get some hands-on experience: at least that was the case for me.
+Therefore, Trillian and I had a little play-date. I thought I would share a few
+observations that in hindsight are obvious but at the same time helpful.&lt;/p&gt;
+&lt;h2 id=&#34;problem-statement-and-overview&#34;&gt;Problem statement and overview&lt;/h2&gt;
+&lt;p&gt;I agree with Daz Wilkin that &lt;a href=&#34;https://medium.com/google-cloud/google-trillian-for-noobs-9b81547e9c4a&#34;&gt;it is somewhat daunting to get started with
+Trillian&lt;/a&gt;.
+Putting it all together involves many different components and configurations,
+especially if you need the high reliability and scale that
+Trillian supports. It does not have to be that complicated though. Trillian is
+pretty much a database which includes an append-only Merkle tree:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Trillian log server:&lt;/strong&gt; exposes a gRPC API that is used by an
+application-dependent front-end or so-called &lt;em&gt;Trillian personality&lt;/em&gt;. Requests and
+responses trigger operations on the underlying database, such as queuing new
+data requests and assembling cryptographic Merkle tree proofs.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Trillian log signer:&lt;/strong&gt; checks the database periodically and sequences it
+into a Merkle tree. The term &lt;em&gt;log signer&lt;/em&gt; was confusing for me initially because
+it is usually the front-end personality that adds externally visible signatures.
+Therefore, I found it helpful to think of this component as a &lt;em&gt;log sequencer&lt;/em&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;I will not talk much about the front-end personality. It is the part of Trillian
+that you or your ecosystem has to implement. It will include definitions of
+public endpoints, the data to be logged, who is allowed logging it, etc.&lt;/p&gt;
+&lt;h2 id=&#34;trillian-as-a-database-abstraction&#34;&gt;Trillian as a database abstraction&lt;/h2&gt;
+&lt;p&gt;The simplest description of Trillian is probably as a regular database. You can
+insert any item of your choice after serializing it as zeroes and ones, and come
+back later on and retrieve it. In reality it is more accurate to say that
+Trillian is hooked-up to a database, such as MariaDB using the schema over
+&lt;a href=&#34;https://github.com/google/trillian/blob/master/storage/mysql/schema/storage.sql&#34;&gt;here&lt;/a&gt;.
+This means that before getting started a database must be configured such that
+there is a record in the Trees table that identifies a particular Trillian
+instance.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;CREATE TABLE IF NOT EXISTS Trees(
+    TreeId BIGINT NOT NULL,
+    HashAlgorithm ENUM(‘SHA256’) NOT NULL,
+    SignatureAlgorithm ENUM(‘ECDSA’, ‘RSA’, ‘ED25519’) NOT NULL,
+    PrivateKey MEDIUMBLOB NOT NULL,
+    PublicKey MEDIUMBLOB NOT NULL,
+    ...
+);
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Initially I was confused by the public-key cryptography that is part of the
+database schema: is it not the front-end personality that attaches signatures,
+for, say, Signed Certificate Timestamps (SCTs) in Certificate Transparency?
+Well, yes. But the scenario in mind here is that there might be a front-end
+personality that runs in a different trust domain, such that the Trillian
+back-end needs to sign some data to prove its origin. The front-end determines
+what becomes externally visible regardless of if these signatures are used.&lt;/p&gt;
+&lt;p&gt;New add-data requests are queued by the Trillian log server in an unordered
+table of pending leaves. Each such leaf also has an optional appendix, which
+allows extra data to be stored but without merging it into the Merkle tree.  For
+example, it might be reasonable to hold on to an associated signature if the
+front-end personality requires that the data is signed as an admission criteria.&lt;/p&gt;
+&lt;h2 id=&#34;trillian-as-a-merkle-tree-abstraction&#34;&gt;Trillian as a Merkle tree abstraction&lt;/h2&gt;
+&lt;p&gt;The log signer sequences the pending leaf data periodically. By sequencing I
+mean taking the unordered leaves that one or more log servers queued, and then
+appending them to the current Merkle tree on specific indices. In other words,
+not even the log servers know the index of an added leaf until it is merged. It
+is important to keep in mind because several proposals in the past assumed that
+Trillian logs are timestamp ordered, but strictly speaking there is no such
+guarantee unless the front-end takes responsibility of sequencing (in which case
+there is a specific pre-ordered Trillian API that can be used).&lt;/p&gt;
+&lt;p&gt;The Merkle tree itself is viewed as many smaller sub-trees in the database,
+where only the bottom layer of each sub-tree is stored physically. Any interior
+node can be computed on the fly, which apparently &lt;a href=&#34;https://github.com/google/trillian/blob/master/docs/storage/storage.md&#34;&gt;saves up to 50% of
+space&lt;/a&gt;.
+The log server accesses the database to interact with the sequenced Merkle tree,
+e.g., to retrieve tree heads and build audit paths (hashes in the tree). As
+such, there is no explicit communication between the log server and signer.&lt;/p&gt;
+&lt;h2 id=&#34;trillian-as-an-api&#34;&gt;Trillian as an API&lt;/h2&gt;
+&lt;p&gt;The final part of the puzzle is the interface that the front-end personality can
+use while talking to Trillian. Fortunately, it is relatively straight forward.
+You will only send requests and receives responses from the log server that
+exposes a gRPC API. Possible requests and responses are documented
+&lt;a href=&#34;https://github.com/google/trillian/blob/master/docs/api.md&#34;&gt;here&lt;/a&gt;. This is
+really the place to look if you want to know what will &amp;ldquo;just work&amp;rdquo;.&lt;/p&gt;
+&lt;p&gt;For example, you will notice that there is a &lt;code&gt;QueueLeafRequest&lt;/code&gt; that takes as
+input some data that goes into the Merkle tree and the leaf’s Appendix, as well
+as an identity hash that tells Trillian what should be counted as a duplicate.
+You may also take advantage of the built-in Trillian rate limiting by specifying
+a custom &lt;code&gt;charge_to&lt;/code&gt; string. You can think of this as saying &amp;ldquo;Dear Trillian,
+this IP address requested to add a leaf and it is signed using a certificate
+that ends in the following trust anchor&amp;rdquo;. In response a resource exhaustion
+error might be returned if too many requests were observed for a given quota
+string.&lt;/p&gt;
+&lt;p&gt;Other requests I would suggest you look into include retrieving a leaf, a signed
+tree head, an inclusion proof, and a consistency proof. It goes a pretty long
+way if you want to get what details are (not) in the front-end personality.&lt;/p&gt;
+&lt;h2 id=&#34;concluding-remarks&#34;&gt;Concluding remarks&lt;/h2&gt;
+&lt;p&gt;The view that Trillian is a database with an append-only Merkle tree is by no
+means wrong, but it is also not a complete description. For example, there is
+also a map mode that associates keys with values without being append-only. If
+you look further into Trillian you will also realize that there are many details
+that matter for deployment but not so much if we just want to get the hang of
+things. For example, there is built-in functionality for running several log
+server and signing instances, coordinating them, exporting health metrics,
+choosing database back-ends, configuring rate limiting, and more. If that sounds
+interesting you can get an enhanced intuition by reading the &lt;a href=&#34;https://github.com/google/certificate-transparency-go/blob/master/trillian/docs/ManualDeployment.md&#34;&gt;manual deployment
+scenario&lt;/a&gt; documentation for Certificate Transparency.&lt;/p&gt;
+&lt;h2 id=&#34;acknowledgments&#34;&gt;Acknowledgments&lt;/h2&gt;
+&lt;p&gt;Fredrik Strömberg provided valuable feedback on this story, which is sponsored
+by my &lt;a href=&#34;https://system-transparency.org/&#34;&gt;System Transparency&lt;/a&gt; employment at
+Mullvad VPN.&lt;/p&gt;
+</description>
+     </item>
    
      <item>
        <title>Hold on to your hat and learn System Transparency in five minutes!</title>
