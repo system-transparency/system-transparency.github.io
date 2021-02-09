@@ -3,17 +3,22 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
-    <loc>https://system-transparency.github.io/posts/observations-from-a-trillian-play-date/</loc>
-    <lastmod>2020-11-23T00:00:00+01:00</lastmod>
-  </url>
-  
-  <url>
     <loc>https://system-transparency.github.io/posts/</loc>
-    <lastmod>2020-11-23T00:00:00+01:00</lastmod>
+    <lastmod>2021-02-09T00:00:00+01:00</lastmod>
   </url>
   
   <url>
     <loc>https://system-transparency.github.io/</loc>
+    <lastmod>2021-02-09T00:00:00+01:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://system-transparency.github.io/posts/trillian-log-sequencing-demystified/</loc>
+    <lastmod>2021-02-09T00:00:00+01:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://system-transparency.github.io/posts/observations-from-a-trillian-play-date/</loc>
     <lastmod>2020-11-23T00:00:00+01:00</lastmod>
   </url>
   

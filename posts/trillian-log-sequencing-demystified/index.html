@@ -1,0 +1,225 @@
+<!doctype html>
+
+<html lang="en-us">
+
+<head>
+  <title>Trillian log sequencing: demystified? - System Transparency Blog</title>
+  <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="The HTML5 Herald" />
+<meta name="author" content="Rasmus Dahlberg" /><meta property="og:title" content="Trillian log sequencing: demystified?" />
+<meta property="og:description" content="One way to view Trillian is as a database with an append-only Merkle tree. That Merkle tree is managed by a separate component called a log signer. It runs in a dedicated process that basically merges pending leaves that have yet to be incorporated into the Merkle tree. This part of the log signer is structured as a sequencing job that runs periodically. I spent a few hours learning more about the details and thought shared knowledge is better." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://system-transparency.github.io/posts/trillian-log-sequencing-demystified/" />
+<meta property="article:published_time" content="2021-02-09T00:00:00+01:00" />
+<meta property="article:modified_time" content="2021-02-09T00:00:00+01:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Trillian log sequencing: demystified?"/>
+<meta name="twitter:description" content="One way to view Trillian is as a database with an append-only Merkle tree. That Merkle tree is managed by a separate component called a log signer. It runs in a dedicated process that basically merges pending leaves that have yet to be incorporated into the Merkle tree. This part of the log signer is structured as a sequencing job that runs periodically. I spent a few hours learning more about the details and thought shared knowledge is better."/>
+
+<meta name="generator" content="Hugo 0.75.1" />
+    
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" integrity="sha256-l85OmPOjvil/SOvVt3HnSSjzF1TUMyT9eV0c2BzEGzU=" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://system-transparency.github.io/fontawesome/css/all.min.css" />
+  
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
+  
+  
+  <link rel="stylesheet" type="text/css" href="/css/styles.css" /></head>
+
+<body>
+  <div id="container">
+    <header>
+      <h1>
+                <a href="/">System Transparency Blog</a>
+            </h1>
+
+      <ul id="social-media">
+             <li>
+               <a href="https://github.com/system-transparency" title="GitHub">
+               <i class="fab fa-github fa-lg"></i>
+               </a>
+             </li>
+             <li>
+               <a href="https://twitter.com/st_transparency" title="Twitter">
+               <i class="fab fa-twitter fa-lg"></i>
+               </a>
+             </li>
+      </ul>
+      
+      <p><em>A security architecture for bare-metal servers</em></p>
+      
+    </header>
+
+    
+<nav>
+    <ul>
+        
+    </ul>
+</nav>
+
+
+    <main>
+
+
+
+
+<article>
+
+    <h1>Trillian log sequencing: demystified?</h1>
+
+    
+      <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2021-02-09T00:00:00&#43;01:00">Feb 9, 2021</time>
+        </li>
+		<li>Rasmus Dahlberg</li>
+        
+
+        
+
+		
+		<li>
+			
+			
+				4 minutes
+			
+			read
+		</li>
+    </ul>
+</aside>
+
+    
+
+    
+
+
+    <p>One way to view <a href="https://transparency.dev/">Trillian</a> is as <a href="https://system-transparency.github.io/posts/observations-from-a-trillian-play-date/">a database with an
+append-only Merkle
+tree</a>.
+That Merkle tree is managed by a separate component called a log signer. It runs
+in a dedicated process that basically merges pending leaves that have yet to be
+incorporated into the Merkle tree. This part of the log signer is structured as
+a sequencing job that runs periodically. I spent a few hours learning more about
+the details and thought shared knowledge is better.</p>
+<h2 id="problem-definition-and-overview">Problem definition and overview</h2>
+<p>Trillian’s <a href="https://github.com/google/trillian/blob/3ae67195ffd778d37275c6972445f4e7f9e21410/cmd/trillian_log_signer/main.go">log
+signer</a>
+comes with a whole bunch of configuration options that are spread across several
+different files. Some of these options are more difficult to grasp than others,
+such as <code>num_sequencers</code>, <code>sequencer_interval</code>, and <code>batch_size</code>. I don&rsquo;t mean
+difficult as in understanding that there may be several sequencers that run
+periodically, but rather what that actually means in terms of concurrency and
+how much can be sequenced per time unit.</p>
+<p>The short answer is as follows:</p>
+<ol>
+<li>Regardless of how many sequencers you configure there will be no concurrent
+sequencing of a particular Merkle tree. The number of sequencers is only
+relevant if there are multiple Merkle trees.</li>
+<li>The sequencer interval tells you how often the log signer wakes up to do a
+sequencing job. It sequences no more than the configured batch size before going
+back to sleep. If the interval elapsed already there will be no sleep.</li>
+</ol>
+<p>In other words, to avoid building up a large backlog you need to consider how
+often the sequencer runs and how much work it is willing to do every time. The
+longer answer is detailed below, and it includes a little bit of additional
+context regarding what you may (not) do with these three parameters. For
+example, the sequencer job is most reliable if it runs often over small batches.</p>
+<h2 id="log-signer">Log signer</h2>
+<p>The most central part of the log signer is probably its forever loop. For
+reference it is implemented by Trillian’s <a href="https://github.com/google/trillian/blob/3ae67195ffd778d37275c6972445f4e7f9e21410/log/operation_manager.go#L110">operation
+manager</a>,
+see the <code>OperationLoop</code> function. In a nutshell, the log signer wakes up,
+performs some jobs, and goes back to sleep. Pretty much a busy working day!</p>
+<h3 id="coordination">Coordination</h3>
+<p>Before proceeding you need to know that a log signer may manage multiple
+different Merkle trees. It might sound odd at first, but hopefully less so if
+you think about the existence of transparency applications that use <a href="https://www.digicert.com/dc/blog/scaling-certificate-transparency-logs-temporal-sharding/">temporal
+sharding</a>:
+the split of one transparency log into multiple smaller ones so that the leaves
+are grouped by, say, yearly relevance like 2020 and 2021. This allows parts of
+the log to be retired as soon as they are no longer needed. You can also run
+multiple different log signers to avoid single points of failure. At most one
+log signer is responsible for a particular Merkle tree at a time though. This
+requires coordination, which is one part of the forever loop.</p>
+<h3 id="sequencing">Sequencing</h3>
+<p>The other part is log sequencing. After waking up once per interval as defined
+by the configured <code>sequencer_interval</code>, the log signer takes a pass over all
+Merkle trees that it manages. A sequencing job is scheduled for each Merkle tree
+that the log signer is currently the master for. It is determined by an election
+protocol which is used for coordination in the case of multiple log signers,
+otherwise master is assumed as there is nothing to coordinate. Next, these jobs
+are distributed to a number of concurrent sequencers that work on <em>different
+Merkle trees</em>. This means that there is no concurrency whatsoever when <em>a
+particular Merkle tree</em> is being sequenced. Moreover, <a href="https://github.com/google/trillian/blob/3ae67195ffd778d37275c6972445f4e7f9e21410/storage/mysql/queue.go#L33">what is selected for
+sequencing</a>
+is deterministic based on Trillian’s internal timestamp order and the number of
+leaves that the sequencer is willing to process per job.</p>
+<p>In other words, there is no point setting <code>num_sequencers</code> higher than the
+number of Merkle trees that you manage. You may set it lower, in which case at
+least one sequencer will move on to a different sequencing job (and thus a
+different Merkle tree) once it is done. Now it is also evident that the
+configured <code>sequencer_interval</code> and <code>batch_size</code> determines an upper bound for
+the number of writes per time unit. It is an upper bound because your hardware
+might not be capable of handling, say, 10k writes per second.</p>
+<h2 id="concluding-remarks">Concluding remarks</h2>
+<p>When I noticed the <code>sequencer_interval</code> parameter I wondered if it could be used
+to configure a tree head frequency, such that the Trillian front-end personality
+would only see a fixed number of updates per time interval. For example, you
+might want that because the <a href="https://datatracker.ietf.org/doc/html/draft-ietf-trans-rfc6962-bis-34#section-4.1">second version of Certificate Transparency requires
+control over it</a> and some gossip-audit models <a href="https://tools.ietf.org/html/draft-ietf-trans-gossip-05">assume it</a>. If not supported by the
+Trillian back-end, the front-end personality has to take on the role. While it
+is trivial in the case of a single personality instance (e.g., pick a tree head
+every hour), it might require some additional coordination if there are multiple
+concurrent instances running. So, it would be convenient if the <em>already
+coordinated</em> log signer could enforce a tree head frequency.</p>
+<p>In theory it is of course possible to set the sequencer interval and batch size
+to accommodate both a frequency and an upper bound for writes per second. In
+practice it is apparently recommended to use short intervals and batch sizes of
+up to 1000 leaves. This recommendation involves quite a bit of nuance, and
+relates to things like <a href="https://github.com/google/trillian/issues/1845">which back-end is used for the underlying
+database</a>. If tree head
+frequencies are generally useful it might land as a back-end feature at some
+point. For now, it is better enforced by the front-end personality.</p>
+<h2 id="acknowledgments">Acknowledgments</h2>
+<p>This story is sponsored by my <a href="https://system-transparency.org/">System
+Transparency</a> employment at Mullvad VPN.
+Martin Hutchinson and Pavel Kalinnikov provided valuable insights as part of a
+conversation in the <a href="https://gtrillian.slack.com">Trillian slack</a>. Mistakes, if
+any, are my own.</p>
+
+
+</article>
+
+
+<section class="post-nav">
+    <ul>
+        
+        <li>
+            <a href="https://system-transparency.github.io/posts/observations-from-a-trillian-play-date/"><i class="fa fa-chevron-circle-left"></i> Observations from a Trillian play-date</a>
+        </li>
+        
+        
+    </ul>
+</section>
+  
+    
+    
+  
+
+
+
+
+
+</main>
+    <footer>
+        <h6>
+			<a href="https://system-transparency.org" title="System
+				Transparency">system-transparency.org</a> |
+            <a href="https://system-transparency.github.ioindex.xml">Subscribe</a></h6>
+    </footer>
+</div>
+
